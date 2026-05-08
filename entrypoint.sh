@@ -34,6 +34,8 @@ file_env() {
   unset "$fileVar"
 }
 
+file_env 'SMTP_HOST'
+
 if [ -z "$SMTP_HOST" ]; then
   echo >&2 "ERROR: SMTP_HOST must be defined"
   exit 1
