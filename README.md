@@ -7,10 +7,17 @@ Docker image for running an [msmtp](https://marlam.de/msmtp/) SMTP relay daemon.
 ```yaml
 # docker-compose.yml
 services:
-  mail:
+  msmtpd:
     image: ghcr.io/loorisr/msmtpd-docker:latest
-    container_name: mail_relay
+    container_name: msmtpd
+    init: true
     restart: always
+    read_only: true
+    tmpfs:
+      - /tmp
+    user: 1000:1000
+    cap_drop:
+    - ALL
     ports:
       - "2500:2500"
     environment:
@@ -24,6 +31,11 @@ services:
       - SMTP_PASSWORD=your-app-password
       - SMTP_FROM=your-email@gmail.com
       - SMTP_DOMAIN=gmail.com
+    healthcheck:
+      test: ["CMD", "nc", "-zv", "127.0.0.1", "2500"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 ```
 
 Applications inside the same Docker network can then send email via `mail_relay:2500` without needing their own SMTP credentials.
@@ -86,37 +98,13 @@ secrets:
     file: ./secrets/smtp_password.txt
 ```
 
-## Healthcheck
-
-```yaml
-healthcheck:
-  test: ["CMD", "nc", "-z", "localhost", "2500"]
-  interval: 30s
-  timeout: 10s
-  retries: 3
-```
-
-The container exposes a TCP healthcheck on port 2500. Ensure `netcat-openbsd` or equivalent is installed if adding a healthcheck to your compose file.
-
-## Running as non-root
-
-The container is designed to run as an unprivileged user. Override the UID/GID in your compose file:
-
-```yaml
-services:
-  mail:
-    image: ghcr.io/loorisr/msmtpd-docker:latest
-    user: "1000:1000"
-```
-
-The configuration is written to `/tmp/msmtprc` with mode `0600`. The `--command` in the Docker CMD includes `-C /tmp/msmtprc` to ensure `msmtp` finds it regardless of environment inheritance.
-
 ## Security
 
 - No root privileges required at runtime — drop privileges via `user:` in compose.
 - Sensitive environment variables (`SMTP_USER`, `SMTP_PASSWORD`) are unset after the config file is generated.
 - Plaintext SMTP credentials are stored only in `/tmp/msmtprc` inside the container (chmod 600), never in process command lines.
 - Use Docker Secrets (`_FILE` convention) for credential injection in production.
+- Can run as read-only
 
 ## Build
 

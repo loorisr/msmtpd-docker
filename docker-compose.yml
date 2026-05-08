@@ -1,7 +1,7 @@
 services:
   msmtpd:
     build: .
-    container_name: mail_relay
+    container_name: msmtpd
     init: true
     restart: always
     read_only: true

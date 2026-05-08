@@ -42,14 +42,6 @@ jobs:
             type=sha,prefix=
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
 
-      - name: Build and push
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-
       - name: Delete old versions (keep last 2)
         uses: actions/delete-package-versions@v5
         with:
@@ -57,3 +49,11 @@ jobs:
           package-type: container
           min-versions-to-keep: 2
           ignore-versions: ^v\d+\.\d+\.\d+(-.*)?$
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
