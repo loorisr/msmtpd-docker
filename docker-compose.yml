@@ -1,0 +1,33 @@
+services:
+  msmtpd:
+    build: .
+    container_name: mail_relay
+    init: true
+    restart: always
+    read_only: true
+    tmpfs:
+      - /tmp
+    user: 1000:1000
+    cap_drop:
+    - ALL
+    ports:
+      - "2500:2500"
+    environment:
+      - TZ=UTC
+      - SMTP_HOST=smtp.gmail.com
+      - SMTP_PORT=587
+      - SMTP_AUTH=on
+      - SMTP_TLS=on
+      - SMTP_STARTTLS=on
+      - SMTP_TLS_CHECKCERT=on
+      - SMTP_USER=your-email@gmail.com
+      - SMTP_FROM=your-email@gmail.com
+      - SMTP_DOMAIN=gmail.com
+      - SMTP_PASSWORD=mypassword
+    # Optional: Healthcheck to ensure the port is open
+    healthcheck:
+      test: ["CMD", "nc", "-zv", "127.0.0.1", "2500"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
