@@ -1,14 +1,18 @@
-FROM alpine:latest
+FROM alpine:3.24
 
 RUN apk add --no-cache \
     msmtp \
     tzdata \
     ca-certificates
 
-COPY entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
+COPY --chmod=755 entrypoint.sh /usr/local/bin/entrypoint.sh
 
 EXPOSE 2500
+
+USER 1000:1000
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD ["nc", "-z", "127.0.0.1", "2500"]
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 

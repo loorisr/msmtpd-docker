@@ -1,11 +1,33 @@
 #!/bin/sh
 set -e
 
-TZ=${TZ:-UTC}
-SMTP_PORT=${SMTP_PORT:-587}
 CONFIG_FILE="/tmp/msmtprc"
 
-export MSMTPRC="${CONFIG_FILE}"
+# The config holds credentials: it must never exist with wider permissions.
+umask 077
+
+NEWLINE='
+'
+CARRIAGE_RETURN="$(printf '\r')"
+
+# Each entry is VARIABLE:msmtp_directive. SMTP_HOST and SMTP_PORT are handled apart.
+OPTIONS="
+SMTP_TLS:tls
+SMTP_STARTTLS:tls_starttls
+SMTP_TLS_CHECKCERT:tls_certcheck
+SMTP_AUTH:auth
+SMTP_USER:user
+SMTP_PASSWORD:password
+SMTP_DOMAIN:domain
+SMTP_FROM:from
+SMTP_ALLOW_FROM_OVERRIDE:allow_from_override
+SMTP_SET_FROM_HEADER:set_from_header
+SMTP_SET_DATE_HEADER:set_date_header
+SMTP_REMOVE_BCC_HEADERS:remove_bcc_headers
+SMTP_UNDISCLOSED_RECIPIENTS:undisclosed_recipients
+SMTP_DSN_NOTIFY:dsn_notify
+SMTP_DSN_RETURN:dsn_return
+"
 
 file_env() {
   var="$1"
@@ -30,16 +52,36 @@ file_env() {
     fi
     val="$(cat "$file_var_val")"
   fi
-  export "$var"="$val"
+
+  # msmtprc is line-based: a line break would inject another directive.
+  case "$val" in
+    *"$NEWLINE"* | *"$CARRIAGE_RETURN"*)
+      echo >&2 "error: $var must not contain line breaks"
+      exit 1
+      ;;
+  esac
+
+  export "$var=$val"
   unset "$fileVar"
 }
 
+# msmtp only strips the surrounding quotes: inner quotes and backslashes are literal,
+# so values must not be escaped.
+write_option() {
+  printf '%s "%s"\n' "$1" "$2" >> "${CONFIG_FILE}"
+}
+
 file_env 'SMTP_HOST'
+file_env 'SMTP_PORT' '587'
 
 if [ -z "$SMTP_HOST" ]; then
   echo >&2 "ERROR: SMTP_HOST must be defined"
   exit 1
 fi
+
+for option in $OPTIONS; do
+  file_env "${option%%:*}"
+done
 
 echo "Creating configuration at ${CONFIG_FILE}..."
 
@@ -47,33 +89,23 @@ cat > "${CONFIG_FILE}" <<EOL
 account default
 logfile -
 syslog off
-host ${SMTP_HOST}
 EOL
 
-file_env 'SMTP_USER'
-file_env 'SMTP_PASSWORD'
+write_option host "$SMTP_HOST"
+# shellcheck disable=SC2153 # assigned dynamically by file_env
+write_option port "$SMTP_PORT"
 
-[ -n "$SMTP_PORT" ] && echo "port ${SMTP_PORT}" >> "${CONFIG_FILE}"
-[ -n "$SMTP_TLS" ] && echo "tls ${SMTP_TLS}" >> "${CONFIG_FILE}"
-[ -n "$SMTP_STARTTLS" ] && echo "tls_starttls ${SMTP_STARTTLS}" >> "${CONFIG_FILE}"
-[ -n "$SMTP_TLS_CHECKCERT" ] && echo "tls_certcheck ${SMTP_TLS_CHECKCERT}" >> "${CONFIG_FILE}"
-[ -n "$SMTP_AUTH" ] && echo "auth ${SMTP_AUTH}" >> "${CONFIG_FILE}"
-[ -n "$SMTP_USER" ] && echo "user ${SMTP_USER}" >> "${CONFIG_FILE}"
-[ -n "$SMTP_PASSWORD" ] && echo "password ${SMTP_PASSWORD}" >> "${CONFIG_FILE}"
-[ -n "$SMTP_DOMAIN" ] && echo "domain ${SMTP_DOMAIN}" >> "${CONFIG_FILE}"
-[ -n "$SMTP_FROM" ] && echo "from ${SMTP_FROM}" >> "${CONFIG_FILE}"
-[ -n "$SMTP_ALLOW_FROM_OVERRIDE" ] && echo "allow_from_override ${SMTP_ALLOW_FROM_OVERRIDE}" >> "${CONFIG_FILE}"
-[ -n "$SMTP_SET_FROM_HEADER" ] && echo "set_from_header ${SMTP_SET_FROM_HEADER}" >> "${CONFIG_FILE}"
-[ -n "$SMTP_SET_DATE_HEADER" ] && echo "set_date_header ${SMTP_SET_DATE_HEADER}" >> "${CONFIG_FILE}"
-[ -n "$SMTP_REMOVE_BCC_HEADERS" ] && echo "remove_bcc_headers ${SMTP_REMOVE_BCC_HEADERS}" >> "${CONFIG_FILE}"
-[ -n "$SMTP_UNDISCLOSED_RECIPIENTS" ] && echo "undisclosed_recipients ${SMTP_UNDISCLOSED_RECIPIENTS}" >> "${CONFIG_FILE}"
-[ -n "$SMTP_DSN_NOTIFY" ] && echo "dsn_notify ${SMTP_DSN_NOTIFY}" >> "${CONFIG_FILE}"
-[ -n "$SMTP_DSN_RETURN" ] && echo "dsn_return ${SMTP_DSN_RETURN}" >> "${CONFIG_FILE}"
+for option in $OPTIONS; do
+  eval "value=\${${option%%:*}}"
+  if [ -n "$value" ]; then
+    write_option "${option#*:}" "$value"
+  fi
+done
 
-chmod 600 "${CONFIG_FILE}"
-
-unset SMTP_USER
-unset SMTP_PASSWORD
+unset SMTP_HOST SMTP_PORT value val var_val file_var_val
+for option in $OPTIONS; do
+  unset "${option%%:*}"
+done
 
 echo "Starting: $*"
 exec "$@"
