@@ -7,11 +7,12 @@ services:
     read_only: true
     tmpfs:
       - /tmp
-    user: 1000:1000
     cap_drop:
     - ALL
     ports:
       - "2500:2500"
+    secrets:
+      - smtp_password
     environment:
       - TZ=UTC
       - SMTP_HOST=smtp.gmail.com
@@ -23,11 +24,8 @@ services:
       - SMTP_USER=your-email@gmail.com
       - SMTP_FROM=your-email@gmail.com
       - SMTP_DOMAIN=gmail.com
-      - SMTP_PASSWORD=mypassword
-    # Optional: Healthcheck to ensure the port is open
-    healthcheck:
-      test: ["CMD", "nc", "-zv", "127.0.0.1", "2500"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      - SMTP_PASSWORD_FILE=/run/secrets/smtp_password
 
+secrets:
+  smtp_password:
+    file: ./secrets/smtp_password.txt
