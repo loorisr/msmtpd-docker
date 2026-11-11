@@ -6,13 +6,20 @@ on:
       - main
     tags:
       - 'v*'
+  pull_request:
   schedule:
     - cron: '0 6 * * 0'
   workflow_dispatch:
+    inputs:
+      cleanup-dry-run:
+        description: 'Only list the package versions the cleanup would delete'
+        type: boolean
+        default: true
 
 env:
   REGISTRY: ghcr.io
   TEST_IMAGE: msmtpd-docker:test
+  TEST_IMAGE_ARM64: msmtpd-docker:test-arm64
   TRIVY_IMAGE: aquasec/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb
 
 jobs:
@@ -42,6 +49,19 @@ jobs:
       - name: Smoke test
         run: bash tests/smoke.sh "$TEST_IMAGE"
 
+      - name: Build arm64 test image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/arm64
+          load: true
+          tags: ${{ env.TEST_IMAGE_ARM64 }}
+
+      - name: Smoke test (arm64, emulated)
+        env:
+          DOCKER_DEFAULT_PLATFORM: linux/arm64
+        run: bash tests/smoke.sh "$TEST_IMAGE_ARM64"
+
       - name: Scan for vulnerabilities
         run: |
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock "$TRIVY_IMAGE" \
@@ -59,6 +79,7 @@ jobs:
           echo "minor=${version%.*}" >> "$GITHUB_OUTPUT"
 
       - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
         uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
@@ -84,6 +105,31 @@ jobs:
         with:
           context: .
           platforms: linux/amd64,linux/arm64
-          push: true
+          push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+  # Weekly builds add a date tag and a commit tag every week. Version tags,
+  # latest and main are never deleted.
+  cleanup:
+    needs: build-and-push
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: cleanup-images
+    permissions:
+      packages: write
+
+    steps:
+      - name: Delete old package versions
+        uses: dataaxiom/ghcr-cleanup-action@v1
+        with:
+          use-regex: true
+          # date tags (YYYYMMDD) and short commit tags
+          delete-tags: '^([0-9]{8}|[0-9a-f]{7})$'
+          exclude-tags: '^(latest|main|v.*|[0-9]+\.[0-9]+(\.[0-9]+)?)$'
+          older-than: 90 days
+          # images left without any tag, e.g. previous builds of latest
+          delete-untagged: true
+          validate: true
+          dry-run: ${{ github.event_name == 'workflow_dispatch' && inputs.cleanup-dry-run }}

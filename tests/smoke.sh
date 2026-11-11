@@ -41,7 +41,7 @@ check() { # description, expected, actual
 start() {
   docker rm -f "$CONTAINER" >/dev/null 2>&1
   docker run -d --name "$CONTAINER" "${HARDENED[@]}" "$@" "$IMAGE" "${LISTEN[@]}" >/dev/null
-  for _ in $(seq 1 50); do
+  for _ in $(seq 1 100); do
     python3 -I -c "import socket;socket.create_connection(('127.0.0.1',$PORT),1)" 2>/dev/null && return
     sleep 0.1
   done

@@ -2,8 +2,7 @@ FROM alpine:3.24
 
 RUN apk add --no-cache \
     msmtp \
-    tzdata \
-    ca-certificates
+    tzdata
 
 COPY --chmod=755 entrypoint.sh /usr/local/bin/entrypoint.sh
 

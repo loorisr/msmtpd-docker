@@ -27,7 +27,9 @@ services:
     tmpfs:
       - /tmp
     cap_drop:
-    - ALL
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "2500:2500"
     secrets:
@@ -58,11 +60,11 @@ With a plain `docker run`, add `--init`: without it, `msmtpd` ignores `SIGTERM` 
 | Tag | Content |
 | --- | ------- |
 | `latest`, `main` | Latest build of the `main` branch, rebuilt weekly with the latest Alpine packages |
-| `YYYYMMDD` | Weekly build of that date; never overwritten |
+| `YYYYMMDD` | Weekly build of that date; never overwritten, deleted after 90 days |
 | `X.Y.Z` | Latest build with that msmtpd version (e.g. `1.8.32`); still rebuilt weekly while Alpine ships it |
 | `X.Y` | Latest build with that msmtpd minor version (e.g. `1.8`) |
 | `vX.Y.Z` | Build of that git tag of this repository |
-| `<commit sha>` | Latest build of that commit; overwritten by the weekly rebuild |
+| `<commit sha>` | Latest build of that commit; overwritten by the weekly rebuild, deleted 90 days after its last build |
 
 ## Delivery failures
 
