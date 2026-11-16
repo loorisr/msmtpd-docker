@@ -127,7 +127,8 @@ jobs:
           use-regex: true
           # date tags (YYYYMMDD) and short commit tags
           delete-tags: '^([0-9]{8}|[0-9a-f]{7})$'
-          exclude-tags: '^(latest|main|v.*|[0-9]+\.[0-9]+(\.[0-9]+)?)$'
+          # flat alternation: nested quantifiers are rejected by the action's ReDoS check
+          exclude-tags: '^(latest|main|v.*|[0-9]+\.[0-9]+\.[0-9]+|[0-9]+\.[0-9]+)$'
           older-than: 90 days
           # images left without any tag, e.g. previous builds of latest
           delete-untagged: true
